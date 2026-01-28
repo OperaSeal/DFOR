@@ -1,13 +1,11 @@
 """ DFOR 772
     Hiller Hoover """
-from re import match
-from sys import byteorder
 
 version = '0.0'
 
 """ Change Log:
     01/27/2026: began writing file 
-    01/28/2026 restructured partition info method"""
+    01/28/2026 restructured partition info method, created print_info method"""
 
 import argparse
 import os
@@ -21,8 +19,7 @@ def open_image(image_path):
     image_file = open (image_path, 'rb')
     return image_file
 
-def retrieve_partition_info(image_file):
-
+def retrieve_partition_info(image_file,outfile):
     #reads the bytes of the VBR sequentially
     #sets jump_bytes to second byte in jump_instruction. It appears to be the case that jump_bytes turns the hex bytes into decimal automatically.
 
@@ -54,6 +51,7 @@ def retrieve_partition_info(image_file):
     volume_serial_number = image_file.read(4)
     volume_label = image_file.read(11)
     filesystem_id = image_file.read(8)
+    boot_code = image_file.read(420)
 
     #prints VBR info, using a secondary function to cast the raw bytes into hex and decimal with little endian.
 
@@ -79,13 +77,17 @@ def retrieve_partition_info(image_file):
     print_info("First cluster in root directory", first_cluster)
     print_info("Filesystem info sector", info_sector)
     print_info("Backup boot sector", backup_boot_sector)
-    print_info("Reserved 0s (0 for FAT32)", reserved, "hex")
+    print_info("Reserved 0s (0 for FAT32)", reserved)
     print_info("Physical disk drive ID", physical_id)
     print_info("Reserved for NT (0 for FAT32)", reserved_for_NT)
     print_info("Extended boot signature", boot_signature, "hex")
     print_info("Volume serial number", volume_serial_number, "hex")
     print_info("Volume Label (ASCII)", volume_label, "ascii")
     print_info("Filesystem ID (ASCII)", filesystem_id, "ascii")
+
+    print(f'\nBoot code SHA-256 hash value: {(hashlib.sha256(boot_code)).hexdigest()}')
+    save_boot_code(boot_code, outfile)
+    print(f'Saving boot code to: {outfile}')
 
 def print_info(text,value,flag="both"):
     #This function allows setting a flag to determine output level. By default, it shows hex and decimal but using "hex" shows only hex. Using "ascii" decodes the bytes to ascii.
@@ -97,29 +99,29 @@ def print_info(text,value,flag="both"):
     elif flag == "hex":
         print(f'{text}: 0x{value.hex()}')
 
-
 def parse_arguments():
     parser = argparse.ArgumentParser(description=f'DFOR 772 FAT32 VBR parser, version {version}')
     parser.add_argument("-i", "--image", help="image file path and name; assumes the first sector in the image is the VBR", required=True)
     parser.add_argument("-o", "--outfile", help="file path and name to store the boot code *only* (not the BPB values)", required=True)
     return parser.parse_args()
 
-def save_boot_code(boot_code, outfile): # called from other function only; not run from main()
-    # check that path exists (file does not have to exist, but we will overwrite it if it does)
-    outfile_path = os.path.dirname(outfile) # extracts just the path
+def save_boot_code(boot_code, outfile):
+    # check that path exists
+    outfile_path = os.path.dirname(outfile)
     if not os.path.isdir(outfile_path):
         print(f'Target folder ({outfile_path}) does not exist.')
         exit()
-    # open the outfile and write the boot code bytes to it
     with open(outfile, 'wb') as f:
         f.write(boot_code)
     return()
 
 def main():
-    #parse_arguments()
-    image_path = 'C:\\Users\\Hiller\\Downloads\\sdcard_DEFCON_FAT32_boot_sectors.bin'
-    image_file= open_image(image_path)
-    retrieve_partition_info(image_file)
+    arguments = parse_arguments()
+    print(f'\nInfile: {arguments.image}')
+    print(f'Outfile: {arguments.outfile}\n')
+    image_file= open_image(arguments.image)
+    retrieve_partition_info(image_file, arguments.outfile)
+    image_file.close()
 
 if __name__ == '__main__':
     main()
