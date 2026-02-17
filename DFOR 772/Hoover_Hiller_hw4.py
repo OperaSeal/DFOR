@@ -23,8 +23,8 @@ def open_image(image_path):
     return image_file
 
 def get_partition_offset(image_file):
-    image_file.seek(EDIT)  # two sectors (0 and 1) + 32 bytes into sector 2; see class 4 slides 14-15
-    partition_offset_sectors = int.from_bytes(image_file.read(EDIT), byteorder='little') # how many bytes are in the first LBA value?
+    image_file.seek(1024+32)  # two sectors (0 and 1) + 32 bytes into sector 2; see class 4 slides 14-15
+    partition_offset_sectors = int.from_bytes(image_file.read(8), byteorder='little') # how many bytes are in the first LBA value?
     return partition_offset_sectors # in sectors
 
 def get_inode_offset(image_file,partition_offset,block_size,sector_size):
@@ -46,18 +46,18 @@ def dump_inodes(image_file,inode_offset_sectors,inode_num,sector_size):
     if(inode_num == 0): # if the user wants to dump *all* inodes
         while(True):
             inode_num +=1
-            specific_inode_location = ((inode_offset_sectors * sector_size) + ((inode_num - 1) * EDIT)) # the value here should be the size of an inode in bytes
+            specific_inode_location = ((inode_offset_sectors * sector_size) + ((inode_num - 1) * 256)) # the value here should be the size of an inode in bytes
             image_file.seek(specific_inode_location)
-            inode = image_file.read(EDIT) # same as above, the value here should be the size of an inode in bytes
+            inode = image_file.read(256) # same as above, the value here should be the size of an inode in bytes
             if(all(byte == 0 for byte in inode)): # if the inode data is all zeros, we're at the end of the active inode list
                 break
             else:
-                print(f'\nContents of inode {inode_num} are:\n{inode.hex('\n',16)}\n') # for nice formatting
+                print(f'\nContents of inode {inode_num} are:\n{inode.hex('\n',16)}\n')
                 print(f'Contents of inode {inode_num} SHA-256 hash value: {(hashlib.sha256(inode)).hexdigest()}')
     else:
-        specific_inode_location = ((inode_offset_sectors * sector_size) + ((inode_num - 1) * EDIT)) # same as above, the value here should be the size of an inode in bytes
+        specific_inode_location = ((inode_offset_sectors * sector_size) + ((inode_num - 1) * 256)) # same as above, the value here should be the size of an inode in bytes
         image_file.seek(specific_inode_location)
-        inode = image_file.read(EDIT) # same as above, the value here should be the size of an inode in bytes, (continued next line)
+        inode = image_file.read(256) # same as above, the value here should be the size of an inode in bytes, (continued next line)
         # which begs the question: why not set the inode size once as a variable? good idea, just be sure to do it *outside* of the if loop
         print(f'Contents of inode {inode_num} are:\n{inode.hex('\n',16)}\n')
         print(f'Contents of inode {inode_num} SHA-256 hash value: {(hashlib.sha256(inode)).hexdigest()}')
