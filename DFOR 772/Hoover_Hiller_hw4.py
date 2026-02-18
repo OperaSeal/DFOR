@@ -1,5 +1,6 @@
 """ DFOR 772
     Hiller Hoover """
+from sys import byteorder
 
 # EXT4 dump inodes
 version = '0.1'
@@ -23,9 +24,9 @@ def open_image(image_path):
     return image_file
 
 def get_partition_offset(image_file):
-    image_file.seek(1024+32)  # two sectors (0 and 1) + 32 bytes into sector 2; see class 4 slides 14-15
-    partition_offset_sectors = int.from_bytes(image_file.read(8), byteorder='little') # how many bytes are in the first LBA value?
-    return partition_offset_sectors # in sectors
+    image_file.seek(1024+32)
+    partition_offset_sectors = int.from_bytes(image_file.read(8), byteorder='little')
+    return partition_offset_sectors
 
 def get_inode_offset(image_file,partition_offset,block_size,sector_size):
     inode_table_offset_hi = (partition_offset * sector_size) + block_size + 8
@@ -36,27 +37,26 @@ def get_inode_offset(image_file,partition_offset,block_size,sector_size):
     image_file.seek(inode_table_offset_lo)
     inode_table_offset_lo_bytes = image_file.read(4)
 
-    inode_table_offset_blocks = int.from_bytes(inode_table_offset_lo_bytes + inode_table_offset_hi_bytes, byteorder='little') #intuitively, this should be hi + lo, but that doesn't work
+    inode_table_offset_blocks = int.from_bytes(inode_table_offset_hi_bytes + inode_table_offset_lo_bytes, byteorder='little')
     inode_table_offset_sectors = partition_offset + (inode_table_offset_blocks * int(block_size / sector_size))
     return inode_table_offset_sectors # in sectors
 
 def dump_inodes(image_file,inode_offset_sectors,inode_num,sector_size):
-    if(inode_num == 0): # if the user wants to dump *all* inodes
-        while(True):
+    if inode_num == 0:
+        while True:
             inode_num +=1
-            specific_inode_location = ((inode_offset_sectors * sector_size) + ((inode_num - 1) * 256)) # the value here should be the size of an inode in bytes
+            specific_inode_location = ((inode_offset_sectors * sector_size) + ((inode_num - 1) * 256))
             image_file.seek(specific_inode_location)
-            inode = image_file.read(256) # same as above, the value here should be the size of an inode in bytes
-            if(all(byte == 0 for byte in inode)): # if the inode data is all zeros, we're at the end of the active inode list
+            inode = image_file.read(256)
+            if all(byte == 0 for byte in inode): # if the inode data is all zeros, we're at the end of the active inode list
                 break
             else:
                 print(f'\nContents of inode {inode_num} are:\n{inode.hex('\n',16)}\n')
                 print(f'Contents of inode {inode_num} SHA-256 hash value: {(hashlib.sha256(inode)).hexdigest()}')
     else:
-        specific_inode_location = ((inode_offset_sectors * sector_size) + ((inode_num - 1) * 256)) # same as above, the value here should be the size of an inode in bytes
+        specific_inode_location = ((inode_offset_sectors * sector_size) + ((inode_num - 1) * 256))
         image_file.seek(specific_inode_location)
-        inode = image_file.read(256) # same as above, the value here should be the size of an inode in bytes, (continued next line)
-        # which begs the question: why not set the inode size once as a variable? good idea, just be sure to do it *outside* of the if loop
+        inode = image_file.read(256)
         print(f'Contents of inode {inode_num} are:\n{inode.hex('\n',16)}\n')
         print(f'Contents of inode {inode_num} SHA-256 hash value: {(hashlib.sha256(inode)).hexdigest()}')
     return
